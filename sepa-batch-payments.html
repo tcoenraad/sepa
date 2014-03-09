@@ -151,7 +151,7 @@
             }
 
             iban = $.trim(fields[1]);
-            amount = parseFloat($.trim(fields[3].replace(',', '.')));
+            amount = parseFloat($.trim(fields[3]).replace(',', '.'));
             if(!IBAN.isValid(iban) || isNaN(amount)) {
               skipped_line = line;
               break;
