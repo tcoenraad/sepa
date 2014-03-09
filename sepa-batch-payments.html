@@ -19,6 +19,12 @@
       label {
         display: block;
       }
+      table {
+        border-collapse: collapse;
+      }
+      table tr:last-child {
+        border-top: 1px solid gray;
+      }
     </style>
     <script type="text/javascript">
       $(function() {
@@ -90,7 +96,15 @@
           "footer": "\n\
     </PmtInf>\n\
   </CstmrCdtTrfInitn>\n\
-</Document>"
+</Document>",
+          'table': {
+            'header' :
+              '<table><th>Name</th><th>IBAN</th><th>Description</th><th>Amount</th></th>',
+            'footer':
+              '<tr><td>total</td><td></td><td></td><td>{control_sum}</td></tr></table>',
+            'row':
+              '<tr><td>{name}</td><td>{iban}</td><td>{description}</td><td>{amount}</td></tr>'
+            }
         };
 
         $('#batch-id, #description').on('change keyup keydown', function() {
@@ -100,29 +114,31 @@
         }).change();
 
         $('#download-xml').click(function(e) {
-            $(this).attr({
-                'href': 'data:application/csv;charset=utf-8,' + encodeURIComponent($('#output-xml').val()),
-                'target': '_blank'
-            });
+          $(this).attr({
+            'href': 'data:application/csv;charset=utf-8,' + encodeURIComponent($('#output-xml').val()),
+            'target': '_blank'
+          });
         });
         $('#generate-batch-id').click(function(e) {
-            e.preventDefault();
-            $('#batch-id').val(Math.round($.now()/1000));
-            $('#batch-id').change();
+          e.preventDefault();
+          $('#batch-id').val(Math.round($.now()/1000));
+          $('#batch-id').change();
         });
         $('#generate-date').click(function(e) {
-            e.preventDefault();
-            d = new Date();
-            mm = d.getMonth() + 1;
-            dd = d.getDate();
-            $('#date').val(d.getFullYear() + "-" + (mm[1] ? mm : "0"+mm) + "-" + (dd[1] ? dd[1] : "0"+dd));
+          e.preventDefault();
+          d = new Date();
+          mm = d.getMonth() + 1;
+          dd = d.getDate();
+          $('#date').val(d.getFullYear() + "-" + (mm[1] ? mm : "0"+mm) + "-" + (dd[1] ? dd[1] : "0"+dd));
         });
         $('form').submit(function(e) {
           e.preventDefault();
             
           lines = $.trim($('#mass-edit-csv').val()).split("\n");
           total_amount = 0;
-          transactions = '';
+
+          transactions_html = '';
+          transactions_xml = '';
           
           var skipped_line;
           for (i = 0; i < lines.length; i++) {
@@ -130,25 +146,26 @@
             fields = line.split(/[,\t]+/);
 
             if (fields.length < 4) {
-                skipped_line = line;
-                break;
+              skipped_line = line;
+              break;
             }
 
             iban = $.trim(fields[1]);
             amount = parseFloat($.trim(fields[3].replace(',', '.')));
             if(!IBAN.isValid(iban) || isNaN(amount)) {
-                skipped_line = line;
-                break;
+              skipped_line = line;
+              break;
             }
             transaction = {
-                'name': $.trim(fields[0]),
-                'iban': iban,
-                'description': $.trim(fields[2]),
-                'amount': amount,
-                'end_to_end_id': $('#batch-id').val() + ":" + i
+              'name': $.trim(fields[0]),
+              'iban': iban,
+              'description': $.trim(fields[2]),
+              'amount': amount,
+              'end_to_end_id': $('#batch-id').val() + ":" + i
             }
             
-            transactions += nano(templates.transaction, transaction);
+            transactions_html += nano(templates.table.row, transaction)
+            transactions_xml += nano(templates.transaction, transaction);
             total_amount += amount;
           }
 
@@ -157,7 +174,7 @@
             return;
           }
           
-          header = {
+          data = {
             'message_id': $.now(),
             'payment_inf_id': $('#batch-id').val(),
             'name': $('#initiating-party-name').val(),
@@ -167,11 +184,16 @@
             'control_sum': Math.round(total_amount*100)/100,
             'date': $('#date').val(),
           }
+
+          output_html = templates.table.header;
+          output_html += transactions_html;
+          output_html += nano(templates.table.footer, data);
+          $('#output-html').html(output_html);
             
-          output = nano(templates.header, header);
-          output += transactions;
-          output += templates.footer;
-          $('#output-xml').html(output);
+          output_xml = nano(templates.header, data);
+          output_xml += transactions_xml;
+          output_xml += templates.footer;
+          $('#output-xml').html(output_xml);
         });
       });
     </script>
@@ -217,6 +239,9 @@ Ook met tabs	NL13TEST0123456789	kan dit script overweg	42.42
           <a href="#" download="untitled.xml" id="download-xml">Download gegenereerde XML</a>
           <small>(bestandsnaam mag bij de Rabobank niet >35 tekens bevatten; gegenereerd wordt '<span id="filename">untitled.xml</span>' met <span id="length-filename">0</span> tekens)</small>
       </p>
+
+      <hr />
+      <div id="output-html"></div>
     </form>
   </body>
 </html>
