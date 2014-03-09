@@ -171,6 +171,7 @@
 
           if (skipped_line) {
             $('#output-xml').html("Er zijn problemen met deze regel:\n" + skipped_line);
+            $('#output-html').empty()
             return;
           }
           
