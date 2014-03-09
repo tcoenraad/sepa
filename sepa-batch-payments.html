@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>SEPA-batchbetalingen</title>
+    <!-- https://jquery.org/license/ -->
+    <script type="text/javascript" src="https://code.jquery.com/jquery-2.1.0.js"></script>
+    <!-- https://github.com/trix/nano/ -->
+    <script type="text/javascript" src="https://raw.github.com/trix/nano/master/nano.js"></script>
+    <!-- https://github.com/arhs/iban.js/blob/master/LICENSE -->
+    <script type="text/javascript" src="https://raw.github.com/arhs/iban.js/master/iban.js"></script>
+    <style type='text/css'>
+      body {
+        font-family: Cambria, serif;
+      }
+      form {
+        margin: 0 auto;
+        width: 680px;
+      }
+      label {
+        display: block;
+      }
+    </style>
+    <script type="text/javascript">
+      $(function() {
+        templates = {
+          'header': "\
+<?xml version=\"1.0\" encoding=\"utf-8\"?>\n\
+<Document xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns=\"urn:iso:std:iso:20022:tech:xsd:pain.001.001.03\">\n\
+  <CstmrCdtTrfInitn>\n\
+    <GrpHdr>\n\
+      <MsgId>{message_id}</MsgId>\n\
+      <CreDtTm>{creation_timestamp}</CreDtTm>\n\
+      <NbOfTxs>{number_of_transactions}</NbOfTxs>\n\
+      <CtrlSum>{control_sum}</CtrlSum>\n\
+       <InitgPty>\n\
+        <Nm>{name}</Nm>\n\
+      </InitgPty>\n\
+    </GrpHdr>\n\
+    <PmtInf>\n\
+      <PmtInfId>{payment_inf_id}</PmtInfId>\n\
+      <PmtMtd>TRF</PmtMtd>\n\
+      <BtchBookg>true</BtchBookg>\n\
+      <PmtTpInf>\n\
+        <InstrPrty>NORM</InstrPrty>\n\
+          <SvcLvl>\n\
+            <Cd>SEPA</Cd>\n\
+          </SvcLvl>\n\
+      </PmtTpInf>\n\
+      <ReqdExctnDt>{date}</ReqdExctnDt>\n\
+      <Dbtr>\n\
+        <Nm>{name}</Nm>\n\
+      </Dbtr>\n\
+      <DbtrAcct>\n\
+        <Id>\n\
+          <IBAN>{iban}</IBAN>\n\
+        </Id>\n\
+        <Ccy>EUR</Ccy>\n\
+      </DbtrAcct>\n\
+      <DbtrAgt>\n\
+        <FinInstnId>\n\
+        </FinInstnId>\n\
+      </DbtrAgt>\n\
+      <ChrgBr>SLEV</ChrgBr>",
+
+          'transaction': "\n\
+      <CdtTrfTxInf>\n\
+        <PmtId>\n\
+          <EndToEndId>{end_to_end_id}</EndToEndId>\n\
+        </PmtId>\n\
+        <Amt>\n\
+          <InstdAmt Ccy=\"EUR\">{amount}</InstdAmt>\n\
+        </Amt>\n\
+        <CdtrAgt>\n\
+          <FinInstnId>\n\
+          </FinInstnId>\n\
+        </CdtrAgt>\n\
+        <Cdtr>\n\
+          <Nm>{name}</Nm>\n\
+        </Cdtr>\n\
+        <CdtrAcct>\n\
+          <Id>\n\
+            <IBAN>{iban}</IBAN>\n\
+          </Id>\n\
+        </CdtrAcct>\n\
+        <RmtInf>\n\
+          <Ustrd>{description}</Ustrd>\n\
+        </RmtInf>\n\
+      </CdtTrfTxInf>",
+
+          "footer": "\n\
+    </PmtInf>\n\
+  </CstmrCdtTrfInitn>\n\
+</Document>"
+        };
+
+        $('#batch-id, #description').on('change keyup keydown', function() {
+          $('#download-xml').attr('download', $('#batch-id').val() + ($('#description').val() ? '-' : '') + $('#description').val() + '.xml');
+          $('#filename').html($('#download-xml').attr('download'));
+          $('#length-filename').html($('#download-xml').attr('download').length);
+        }).change();
+
+        $('#download-xml').click(function(e) {
+            $(this).attr({
+                'href': 'data:application/csv;charset=utf-8,' + encodeURIComponent($('#output-xml').val()),
+                'target': '_blank'
+            });
+        });
+        $('#generate-batch-id').click(function(e) {
+            e.preventDefault();
+            $('#batch-id').val(Math.round($.now()/1000));
+            $('#batch-id').change();
+        });
+        $('#generate-date').click(function(e) {
+            e.preventDefault();
+            d = new Date();
+            mm = d.getMonth() + 1;
+            dd = d.getDate();
+            $('#date').val(d.getFullYear() + "-" + (mm[1] ? mm : "0"+mm) + "-" + (dd[1] ? dd[1] : "0"+dd));
+        });
+        $('form').submit(function(e) {
+          e.preventDefault();
+            
+          lines = $.trim($('#mass-edit-csv').val()).split("\n");
+          total_amount = 0;
+          transactions = '';
+          
+          var skipped_line;
+          for (i = 0; i < lines.length; i++) {
+            line = lines[i];
+            fields = line.split(/[,\t]+/);
+
+            if (fields.length < 4) {
+                skipped_line = line;
+                break;
+            }
+
+            iban = $.trim(fields[1]);
+            amount = parseFloat($.trim(fields[3].replace(',', '.')));
+            if(!IBAN.isValid(iban) || isNaN(amount)) {
+                skipped_line = line;
+                break;
+            }
+            transaction = {
+                'name': $.trim(fields[0]),
+                'iban': iban,
+                'description': $.trim(fields[2]),
+                'amount': amount,
+                'end_to_end_id': $('#batch-id').val() + ":" + i
+            }
+            
+            transactions += nano(templates.transaction, transaction);
+            total_amount += amount;
+          }
+
+          if (skipped_line) {
+            $('#output-xml').html("Er zijn problemen met deze regel:\n" + skipped_line);
+            return;
+          }
+          
+          header = {
+            'message_id': $.now(),
+            'payment_inf_id': $('#batch-id').val(),
+            'name': $('#initiating-party-name').val(),
+            'iban': $('#initiating-party-iban').val(),
+            'creation_timestamp': new Date().toJSON().toString(),
+            'number_of_transactions': lines.length,
+            'control_sum': Math.round(total_amount*100)/100,
+            'date': $('#date').val(),
+          }
+            
+          output = nano(templates.header, header);
+          output += transactions;
+          output += templates.footer;
+          $('#output-xml').html(output);
+        });
+      });
+    </script>
+  </head>
+  <body>
+    <form>
+      <h1>SEPA-batchbetalingen</h1>
+      <p>Deze applicatie zet csv-bestanden om in een XML-bestand dat voldoet aan de PAIN 001.001.03-standaard die wordt gebruikt door banken om euro-betalingen in batches uit te wisselen.</p>
+
+      <fieldset>
+        <legend>Batch</legend>
+        <label for="batch-id">Uniek batch-id*</label>
+        <input type="text" name="batch-id" id="batch-id" required />
+        <button type="button" id="generate-batch-id">Genereer batch-id</button>
+        <label for="date">Uitvoerdatum*</label>
+        <input type="text" name="date" id="date" required />
+        <button type="button" id="generate-date">Datum van vandaag</button>
+        <label for="description">Omschrijving</label>
+       <input type="text" name="description" id="description" placeholder="Interne omschrijving" />
+      </fieldset>
+      
+      <fieldset>
+        <legend>Opdrachtgever</legend>
+        <label for="initiating-party-name">Rekeninghouder*</label>
+        <input type="text" name="iniatiating-party-name" id="initiating-party-name" required />
+        <label for="initiating-party-iban">IBAN*</label>
+        <input type="text" name="iniatiating-party-iban" id="initiating-party-iban" required />
+      </fieldset>
+      <p>
+          <textarea name="mass-edit-csv" id="mass-edit-csv" rows="20" cols="80">
+Met TOM op de koffie!, NL13TEST0123456789, Restitutie kopje koffie, 35.35
+Ook met tabs	NL13TEST0123456789	kan dit script overweg	42.42
+{naam}, {IBAN}, {omschrijving}, {bedrag}
+</textarea>
+      </p>
+      <p>
+          <input type="submit" value="Genereer XML"/>
+      </p>
+      <p>
+          <textarea name="output-xml" id="output-xml" rows="20" cols="80"></textarea>
+      </p>
+      <p>
+          <a href="#" download="untitled.xml" id="download-xml">Download gegenereerde XML</a>
+          <small>(bestandsnaam mag bij de Rabobank niet >35 tekens bevatten; gegenereerd wordt '<span id="filename">untitled.xml</span>' met <span id="length-filename">0</span> tekens)</small>
+      </p>
+    </form>
+  </body>
+</html>
