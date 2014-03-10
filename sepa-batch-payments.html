@@ -127,9 +127,9 @@
         $('#generate-date').click(function(e) {
           e.preventDefault();
           d = new Date();
-          mm = d.getMonth() + 1;
-          dd = d.getDate();
-          $('#date').val(d.getFullYear() + "-" + (mm[1] ? mm : "0"+mm) + "-" + (dd[1] ? dd[1] : "0"+dd));
+          mm = (d.getMonth() + 1).toString();
+          dd = d.getDate().toString();
+          $('#date').val(d.getFullYear().toString() + "-" + (mm[1] ? mm : "0"+mm) + "-" + (dd[1] ? dd : "0"+dd));
         });
         $('form').submit(function(e) {
           e.preventDefault();
