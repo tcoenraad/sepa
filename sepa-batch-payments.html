@@ -133,7 +133,13 @@
         });
         $('form').submit(function(e) {
           e.preventDefault();
-            
+
+          if (!IBAN.isValid($('#initiating-party-iban').val())) {
+            $('#output-xml').html("ERROR: IBAN opdrachtgever niet geldig.");
+            $('#output-html').empty()
+            return;
+          }
+
           lines = $.trim($('#mass-edit-csv').val()).split("\n");
           total_amount = 0;
 
@@ -143,6 +149,8 @@
           var skipped_line;
           for (i = 0; i < lines.length; i++) {
             line = lines[i];
+            if (line.substr(0, 1) == "#") continue;
+
             fields = line.split(/[,\t]+/);
 
             if (fields.length < 4) {
@@ -152,7 +160,7 @@
 
             iban = $.trim(fields[1]);
             amount = parseFloat($.trim(fields[3]).replace(',', '.'));
-            if(!IBAN.isValid(iban) || isNaN(amount)) {
+            if (!IBAN.isValid(iban) || isNaN(amount)) {
               skipped_line = line;
               break;
             }
@@ -170,7 +178,7 @@
           }
 
           if (skipped_line) {
-            $('#output-xml').html("Er zijn problemen met deze regel:\n" + skipped_line);
+            $('#output-xml').html("ERROR: Er zijn problemen met deze regel:\n" + skipped_line);
             $('#output-html').empty()
             return;
           }
@@ -210,7 +218,7 @@
         <input type="text" name="batch-id" id="batch-id" required />
         <button type="button" id="generate-batch-id">Genereer batch-id</button>
         <label for="date">Uitvoerdatum*</label>
-        <input type="text" name="date" id="date" required />
+        <input type="date" name="date" id="date" required />
         <button type="button" id="generate-date">Datum van vandaag</button>
         <label for="description">Omschrijving</label>
        <input type="text" name="description" id="description" placeholder="Interne omschrijving" />
@@ -227,7 +235,7 @@
           <textarea name="mass-edit-csv" id="mass-edit-csv" rows="20" cols="80">
 Met TOM op de koffie!, NL13TEST0123456789, Restitutie kopje koffie, 35.35
 Ook met tabs	NL13TEST0123456789	kan dit script overweg	42.42
-{naam}, {IBAN}, {omschrijving}, {bedrag}
+# format: {naam}, {IBAN}, {omschrijving}, {bedrag}
 </textarea>
       </p>
       <p>
