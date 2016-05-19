@@ -145,7 +145,7 @@
 
           transactions_html = '';
           transactions_xml = '';
-          
+
           var skipped_line;
           for (i = 0; i < lines.length; i++) {
             line = lines[i];
@@ -159,19 +159,19 @@
             }
 
             iban = $.trim(fields[1]);
-            amount = parseFloat($.trim(fields[3]).replace(',', '.'));
+            amount = parseFloat($.trim(fields[3]));
             if (!IBAN.isValid(iban) || isNaN(amount)) {
               skipped_line = line;
               break;
             }
             transaction = {
               'name': $.trim(fields[0]),
-              'iban': iban,
+              'iban': iban.replace(/ /g, ''),
               'description': $.trim(fields[2]),
               'amount': amount,
               'end_to_end_id': $('#batch-id').val() + ":" + i
             }
-            
+
             transactions_html += nano(templates.table.row, transaction)
             transactions_xml += nano(templates.transaction, transaction);
             total_amount += amount;
@@ -182,12 +182,12 @@
             $('#output-html').empty()
             return;
           }
-          
+
           data = {
             'message_id': $.now(),
             'payment_inf_id': $('#batch-id').val(),
             'name': $('#initiating-party-name').val(),
-            'iban': $('#initiating-party-iban').val(),
+            'iban': $('#initiating-party-iban').val().replace(/ /g, ''),
             'creation_timestamp': new Date().toJSON().toString(),
             'number_of_transactions': lines.length,
             'control_sum': Math.round(total_amount*100)/100,
@@ -198,7 +198,7 @@
           output_html += transactions_html;
           output_html += nano(templates.table.footer, data);
           $('#output-html').html(output_html);
-            
+
           output_xml = nano(templates.header, data);
           output_xml += transactions_xml;
           output_xml += templates.footer;
@@ -223,7 +223,7 @@
         <label for="description">Omschrijving</label>
        <input type="text" name="description" id="description" placeholder="Interne omschrijving" />
       </fieldset>
-      
+
       <fieldset>
         <legend>Opdrachtgever</legend>
         <label for="initiating-party-name">Rekeninghouder*</label>
